@@ -1,0 +1,846 @@
+/**
+ * JavaCC template file created by SF JavaCC plugin 1.5.28+ wizard for JavaCC 1.5.0+
+ */options{  static = false;
+  COMMON_TOKEN_ACTION = true ;}PARSER_BEGIN(JJGapParser)
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+
+
+public class JJGapParser{
+  final static String version = "JJGapParser v1.03 26.03.2017";
+
+  boolean ok = false;  // flag indicating successful parse and semantic checks, i.e. no exceptions
+
+  public static void main(String args []) throws ParseException
+  {
+    System.out.println (version);
+    
+//    File infile = new File ("C:\\tools\\cygwin64\\home\\bec\\gap4r8\\lib\\init.g");
+//    File infile = new File ("C:\\tools\\cygwin64\\home\\bec\\gap4r8\\pkg\\CAP-2016.02.19\\examples\\testfiles\\VectorSpacesGeneralizedMorphismsCategory.gi");
+    File infile = new File ("C:\\tools\\cygwin64\\home\\bec\\gap4r8\\lib\\streams.gi");
+    parseGapFile (infile);
+  }
+
+  public static JJGapParser parseGapFile (File infile)
+  {
+    JJGapParser parser = null;
+    try
+    {
+      BufferedReader in = new BufferedReader (new InputStreamReader (new FileInputStream(infile), "ISO-8859-1"));
+      parser = new JJGapParser(in);
+//      System.out.print("Parse: \"" + infile.getAbsolutePath() + "\"  ");
+      parser.Stats();
+	  parser.ok = true;
+//      System.out.println("Parse OK.");
+
+//    } catch (FileNotFoundException e) {
+//        System.out.print("Parse: \"" + infile.getAbsolutePath() + "\"  ");
+//        System.out.println("Parse NOK. FileNotFoundException.");
+//        System.err.println(e.getMessage());
+//        e.printStackTrace();
+//    } catch (IOException e) {
+//        System.out.println("Parse NOK. IoException.");
+//        System.err.println(e.getMessage());
+//        e.printStackTrace();
+//    } catch (ParseException e) {
+//        System.out.println("Parse NOK. ParseException.");
+//        System.out.println(e.getMessage());
+//        e.printStackTrace();
+    } catch (Exception e) {
+        System.out.print("Parse: \"" + infile.getAbsolutePath() + "\"  ");
+        System.out.println("NOK. Exception.");
+//        System.out.println(e.getMessage());
+        e.printStackTrace();
+    } catch (Error e) {
+        System.out.print("Parse: \"" + infile.getAbsolutePath() + "\"  ");
+        System.out.println("Oops. Error.");
+//        System.out.println(e.getMessage());
+        e.printStackTrace();
+    }
+    return parser;
+  }
+}PARSER_END(JJGapParser)
+TOKEN_MGR_DECLS :
+{	int s_char = 0;
+	int LastToken;
+	
+    void CommonTokenAction(Token token) {
+    	LastToken = token.kind;
+    }
+}
+SKIP :{  " "| "\r"| "\t"| "\n"
+| "\\\n"
+| "\f"
+| < "#" (~["\n","\r","\f"])* >  // line comment}
+MORE :
+{
+  < "\"" > : WithinStringLiteral 
+}
+
+<WithinStringLiteral> TOKEN :
+{
+  < S_STRING: "\"" > : DEFAULT
+}
+
+<WithinStringLiteral> MORE :
+{
+  < "\\\\" >		 {{ int l = image.length(); image.setLength(l-1); image.setCharAt(l-2, '\\'); }}
+| < "\\\"" >		 {{ int l = image.length(); image.setLength(l-1); image.setCharAt(l-2, '"'); }}
+| < "\\\n" >		 {{ int l = image.length(); image.setLength(l-2); }}
+| <~["\n","\r"]>
+}
+MORE :
+{
+  "'" : WithinCharLiteral
+}
+
+<WithinCharLiteral> TOKEN :
+{
+  < S_CHAR: "'" | "''" >
+  {
+    // TODO: check for length of char constant and calculate one-char-image
+    matchedToken.image = image.toString();
+  } : DEFAULT
+}
+
+<WithinCharLiteral> MORE :
+{
+  < ~["\n", "\r"] > 
+| < "\\" ["0"-"3"]["0"-"7"]["0"-"7"] >
+	{{ 
+		int l = image.length();
+		String s = image.substring(l-3);
+		int val = Integer.parseInt(s, 8);
+		image.setLength(l-3);
+		image.setCharAt(l-4, (char) val); 
+	}}
+| < "\\n" > {{ int l = image.length(); image.replace(l-2, l, "\n"); }}
+| < "\\t" > {{ int l = image.length(); image.setLength(l-1); image.setCharAt(l-2, '\t'); }}
+| < "\\r" > {{ int l = image.length(); image.setLength(l-1); image.setCharAt(l-2, '\r'); }}
+| < "\\b" > {{ int l = image.length(); image.setLength(l-1); image.setCharAt(l-2, '\b'); }}
+| < "\\>" > {{ int l = image.length(); image.setLength(l-1); image.setCharAt(l-2, (char) 1); }}
+| < "\\<" > {{ int l = image.length(); image.setLength(l-1); image.setCharAt(l-2, (char) 2); }}
+| < "\\c" > {{ int l = image.length(); image.setLength(l-1); image.setCharAt(l-2, (char) 3); }}
+| < "\\" ~["n", "t", "r", "b", ">", "<", "c", "0"-"7"] >
+	{{
+	 	int l = image.length();
+	 	image.setCharAt(l-2, image.charAt(l-1));
+	 	image.setLength(l-1);
+	}}
+}
+
+TOKEN :
+{
+  < S_INT : (["0"-"9"])+ ("..")? >
+  {{
+    // we must be very careful here to recognize S_DOTDOT in situations like "for x in [6..LENGTH(arg)]"
+    // without 'lexical lookahead' implemented here "6.." would be parsed as S_FLOAT followed by S_DOT, i.e. "6." "."
+    // but we want S_INT followed by S_DOTDOT, i.e. "6" ".."
+    int l = image.length();
+    if (image.charAt(l-1) == '.') { 
+      image.setLength(l-2);  
+      input_stream.backup(2);
+      matchedToken.image = image.toString();
+    }
+  }}
+| < S_FLOAT : 
+        (["0"-"9"])+ "." (["0"-"9"])* (<EXPONENT>)?
+      | "." (["0"-"9"])+ (<EXPONENT>)?
+//      | (["0"-"9"])+ <EXPONENT>  this is interpreted as identifier, i.e. you can't name a variable 4e7 in GAP
+  >
+  {{
+    if ((image.charAt(0) == '.') && ((LastToken == S_IDENT)||(LastToken == S_RBRACK)||(LastToken == S_RPAREN)))
+    {
+      // we want input like "Functions.7" to be scanned as S_IDENT S_DOT S_INT instead of S_IDENT S_FLOAT
+      // backup all but the '.' at the beginning and return S_DOT instead of S_FLOAT
+      int l = image.length();
+      image.setLength(1);  
+      input_stream.backup (l-1);
+      matchedToken.image = image.toString();
+      matchedToken.kind = S_DOT;
+    } 
+  }}
+| < #EXPONENT : ["e","E","d","D","q","Q"] (["+","-"])? (["0"-"9"])+ >
+}
+
+TOKEN : 
+{
+  < S_DOTDOTDOT : "..." >
+| < S_DOTDOT : ".." >
+| < S_DOT : "." >
+| < S_BDOT : "!." >
+| < S_BLBRACK : "![" >
+| < S_BLBRACE : "!{" >
+| < S_LBRACK : "[" >
+| < S_RBRACK : "]" >
+| < S_LBRACE : "{" >
+| < S_RBRACE : "}" >
+| < S_LPAREN : "(" >
+| < S_RPAREN : ")" >
+| < S_COMMA : "," >
+| < S_INCORPORATE : "::=" | ":\\\n:=" >
+| < S_ASSIGN : ":=" | ":\\\n=" >
+| < S_COLON : ":" >
+| < S_SEMICOLON : ";" >
+| < S_LE : "<=" | "<\\\n=" >
+| < S_NE : "<>" | "<\\\n>" >
+| < S_GE : ">=" | ">\\\n=" >
+| < S_EQ : "=" >
+| < S_LT : "<" >
+| < S_GT : ">" >
+| < S_PLUS : "+" >
+| < S_MAPTO : "->" | "-\\\n>" >
+| < S_MINUS : "-" >
+| < S_MULT : "*" >
+| < S_DIV : "/" >
+| < S_POW : "^" >
+| < S_ILLEGAL : "!" >
+}
+
+TOKEN :
+{
+  < S_AND : "and" >
+| < S_ATOMIC : "atomic" >
+| < S_BREAK : "break" >
+| < S_CONTINUE : "continue" >
+| < S_DO : "do" >
+| < S_ELIF : "elif" >
+| < S_ELSE : "else" >
+| < S_END : "end" >
+| < S_FALSE : "false" >
+| < S_FI : "fi" >
+| < S_FOR : "for" >
+| < S_FUNCTION : "function" >
+| < S_IF : "if" >
+| < S_IN : "in" >
+| < S_LOCAL : "local" >
+| < S_MOD : "mod" >
+| < S_NOT : "not" >
+| < S_OD : "od" >
+| < S_OR : "or" >
+| < S_READWRITE : "readwrite" >
+| < S_READONLY : "readonly" >
+| < S_REC : "rec" >
+| < S_REPEAT : "repeat" >
+| < S_RETURN : "return" >
+| < S_THEN : "then" >
+| < S_TRUE : "true" >
+| < S_UNTIL : "until" >
+| < S_WHILE : "while" >
+| < S_QUIT : "quit" >
+| < S_QQUIT : "QUIT" >
+| < S_ISBOUND : "IsBound" >
+| < S_UNBIND : "Unbind" >
+| < S_TRYNEXT : "TryNextMethod" >
+| < S_INFO : "Info" >
+| < S_ASSERT : "Assert" >
+}
+
+TOKEN :
+{
+  < S_IDENT: ( < IDENTCHAR > | < ESCIDENTCHAR > )+ | "~" >
+| < #IDENTCHAR : ["0"-"9","a"-"z","A"-"Z","_","@"] >
+| < #ESCIDENTCHAR : "\\" ~[] >  // interpretation of escape sequences is missing
+}
+
+void Unbind():
+{
+}
+{
+  < S_UNBIND >
+  < S_LPAREN >
+  CallVarAss('u')
+  < S_RPAREN >
+}	
+
+void CallVarAss(char mode):
+{}
+{
+  < S_IDENT >
+  (
+//  MODIFIED: moved to Expr, Expr0 to solve ambiguity in grammar//  original version has caused 6 choice conflicts as e.g. "x -> x or b" can be parsed in two different ways
+//    FuncExpr1()  // not for mode=='u'
+//  |
+    (      < S_LBRACK >
+      Expr()
+      (
+        // note: although indexing with multiple indices x[i,j] is syntactically supported we get an "method not found error" in gap4r8        < S_COMMA >
+        Expr()
+      )*
+      < S_RBRACK >
+    | 
+      < S_LBRACE >
+      Expr()
+      < S_RBRACE >
+    | 
+      < S_BLBRACK >
+      Expr()
+      < S_RBRACK >
+    | 
+      < S_BLBRACE >
+      Expr()
+      < S_RBRACE >
+    |
+      < S_DOT >
+      (        < S_IDENT >
+      |
+        < S_INT >
+      |
+        < S_LPAREN >
+        Expr()
+        < S_RPAREN >
+      ) 
+    |  
+      < S_BDOT >
+      (
+        < S_IDENT >
+      |
+        < S_INT >
+      |
+        < S_LPAREN >
+        Expr()
+        < S_RPAREN >
+      ) 
+    |  
+      < S_LPAREN >
+      [        Expr()
+        (          < S_COMMA >
+          Expr()
+        )*
+      ]
+      [
+        < S_COLON >
+        FuncCallOptions()
+      ]
+      < S_RPAREN >
+    )*
+// MODIFIED: see Statement0 for assignment
+//    [
+//      < S_ASSIGN >
+//      Expr()
+//    ]
+  )
+}
+
+void FuncCallOptions():
+{
+}
+{
+  FuncCallOption()
+  (    < S_COMMA >
+    FuncCallOption()
+  )*
+}
+
+void FuncCallOption():
+{
+}
+{
+  (    < S_IDENT >
+  |
+    < S_LPAREN >
+    Expr()
+    < S_RPAREN >
+  )
+  [
+    < S_ASSIGN >
+    Expr()
+  ]
+}
+
+void FuncExpr1():
+{
+}
+{
+  Expr()
+}
+
+// MODIFIED: Introduced additional precedence level Expr0 for implicit function literals
+// S_MAPTO binds very weak so that expressions like "x -> x or a" work as expected
+void Expr():
+{
+}
+{
+  LOOKAHEAD(2)
+  < S_IDENT >
+  < S_MAPTO >
+  Expr0()
+| 
+  < S_MAPTO >
+  Expr0()
+|   
+  Expr0()
+}
+
+void Expr0():
+{}
+{  And()
+  (
+    < S_OR >
+    And()
+  )*
+}
+void And():
+{
+}
+{
+  Rel()
+  (
+    < S_AND >
+    Rel()
+  )*
+}
+
+void Rel():
+{
+}
+{
+  (< S_NOT >)*
+  Ari()
+  [
+    (      < S_EQ > | < S_NE > | < S_LT > | < S_GE > | < S_GT > | < S_LE > | < S_IN >
+    )
+    Ari()
+  ]
+}
+
+void Ari():
+{
+}
+{
+  Term()
+  (    (      < S_PLUS > | < S_MINUS >
+    )
+    Term()
+  )*
+}
+
+void Term():
+{
+}
+{
+  Factor()
+  (    (
+      < S_MULT > | < S_DIV > | < S_MOD >
+    )
+    Factor()
+  )*
+}
+
+void Factor():
+{
+}
+{
+  [
+    (      < S_MINUS > | < S_PLUS >
+    )
+  ]
+  Atom()
+  (    < S_POW >
+    [
+      (
+        < S_MINUS > | < S_PLUS >
+      )
+    ]
+    Atom()
+  )*
+}
+
+void Atom():
+{
+}
+{
+  CallVarAss('?')
+|
+  IsBound()
+| 
+  Literal()
+|
+  // MODIFY: permutation literal or expression in parenthesis - syntactically mixed in favor of conflict-free parsing
+  // semantical variants:
+  //   () - empty permutation literal;
+  //   (expr) - general expression in parenthesis to modify operator precedence
+  //   (expr, expr,...)(expr, ...) - permutation literal
+  < S_LPAREN >
+  (    < S_RPAREN >
+  |
+    Expr()
+    (      < S_COMMA >
+      Expr()
+    )*
+    < S_RPAREN >
+    (      < S_LPAREN >
+      Expr()
+      (        < S_COMMA >
+        Expr()
+      )+
+      < S_RPAREN >
+    )*
+  )
+}
+
+void IsBound():
+{
+}
+{
+  < S_ISBOUND >
+  < S_LPAREN >
+  CallVarAss('i')
+  < S_RPAREN >
+}
+
+void Literal():
+{
+}
+{
+  < S_INT >
+|
+  < S_FLOAT >
+|
+  < S_TRUE >
+|
+  < S_FALSE >
+|
+  < S_CHAR >
+|
+  < S_STRING >
+|
+  ListExpr()
+|
+  RecExpr()
+|
+  FuncExpr()
+// MODIFIED: obsolete, see Expr0, Expr, new level of precedence
+// original version has caused 6 choice conflicts as e.g. "-> a or b" can be parsed in two different ways
+//| 
+//  < S_MAPTO >
+//  Expr()   
+//|
+//  // call to "MakeLiteral" - seems to be implemented only for HPCGAP
+//  < S_BACKQUOTE >
+//  Atom()
+}
+
+void ListExpr():
+{
+}
+{
+  < S_LBRACK >
+  // several commas in a row make sense for lists, e.g. [,,7,,,4,8]
+  // it makes it possible to crrate list with gaps, i.e. unbound indices
+  (ListRangeExpr0())?   
+  (
+    < S_COMMA >    (ListRangeExpr0())?
+  )*
+  < S_RBRACK >
+}
+
+void ListRangeExpr0():
+{
+}
+{
+  Expr()
+  [
+    < S_DOTDOT >
+    Expr()
+  ]
+}
+
+void RecExpr():
+{
+}
+{
+  < S_REC >
+  < S_LPAREN >
+  [    RecFieldExpr0()
+    (
+      < S_COMMA >
+      (RecFieldExpr0())?   // the "()?" emulates a bug in original GAP, see for example "init.g" ln. 848 and two others
+    )*
+  ]
+  < S_RPAREN >
+}
+
+void RecFieldExpr0():
+{
+}
+{
+  < S_IDENT >
+  < S_ASSIGN >
+  Expr()
+|
+  < S_INT >  // RNamName is sequence of digits
+  < S_ASSIGN >
+  Expr()
+|
+  < S_LPAREN >  // RNamName is result of evaluated expression
+  Expr()
+  < S_RPAREN >
+  < S_ASSIGN >
+  Expr()
+}
+
+void FuncExpr():
+{
+}
+{
+  // regular function being optionally ATOMIC, meaning ??
+  [
+    < S_ATOMIC >
+  ]
+  < S_FUNCTION >
+  < S_LPAREN >
+  FunctionArgs0()
+  // S_RPAREN is part of nonterminal symbol above
+  [
+    < S_LOCAL >
+    FunctionLocals0()
+    < S_SEMICOLON >
+  ]
+  Stats()
+  < S_END >
+|
+  // a DO-OD block - not documented, what's that ? 
+  < S_DO >
+  [
+    < S_LOCAL >
+    FunctionLocals0()
+    < S_SEMICOLON >
+  ]
+  Stats()
+  < S_OD >    
+}
+
+void FunctionArgs0():
+{
+}
+{
+  // no arguments
+  < S_RPAREN >
+|
+  FunctionArg0()
+  (    < S_COMMA >
+    FunctionArg0()
+  )*
+  [
+    < S_DOTDOTDOT >
+  ]
+  < S_RPAREN >
+}
+
+void FunctionLocals0():
+{
+}
+{
+  < S_IDENT >
+  (    < S_COMMA >
+    < S_IDENT >
+  )*
+}
+
+void FunctionArg0():
+{
+}
+{
+  < S_IDENT >
+|
+  < S_READWRITE >
+  < S_IDENT >
+|
+  < S_READONLY >
+  < S_IDENT >
+}
+
+void Stats():
+{
+}
+{
+  [
+    < S_SEMICOLON >
+  ]
+  (    Statement0()
+    < S_SEMICOLON >
+    [
+      < S_SEMICOLON >
+    ]
+  )*
+}
+
+void Statement0():
+{
+}
+{
+  // MODIFIED: assignment here as a statement instead of within CallVarAss
+  LOOKAHEAD ( CallVarAss() < S_ASSIGN > )
+  CallVarAss('s')
+  < S_ASSIGN >
+  Expr()
+|
+  Expr()
+|
+  Unbind()
+|
+  Info()
+|
+  Assert()
+|
+  If()
+|
+  For()
+|
+  While()
+|
+  Repeat()
+|
+  Break()
+|
+  Continue()
+|
+  Return()
+|
+  TryNext()
+|
+  Quit()
+//|  TODO: complete Atomic
+//  Atomic()
+// MODIFIED: Empty modeled differently - see Stats - two s_SEMICOLON in a row possible
+//|
+//  Empty()   
+}
+
+void Info():
+{
+}
+{
+  < S_INFO >
+  < S_LPAREN >
+  Expr()
+  < S_COMMA >
+  Expr()
+  (    < S_COMMA >
+    Expr()
+  )*
+  < S_RPAREN >
+}
+
+void Assert():
+{
+}
+{
+  < S_ASSERT >
+  < S_LPAREN >
+  Expr()
+  < S_COMMA >
+  Expr()
+  [
+    < S_COMMA >
+    Expr()
+  ]
+  < S_RPAREN >
+}
+
+void If():
+{
+}
+{
+  < S_IF >
+  Expr()
+  < S_THEN >
+  Stats()
+  (    < S_ELIF >
+    Expr()
+    < S_THEN >
+    Stats()
+  )*
+  [
+    < S_ELSE >
+    Stats()
+  ]
+  < S_FI >
+}
+
+void For():
+{
+}
+{
+  < S_FOR >
+  CallVarAss('r')
+  < S_IN >
+  Expr()
+  < S_DO >
+  Stats()
+  < S_OD >
+}
+
+void While():
+{
+}
+{
+  < S_WHILE >
+  Expr()
+  < S_DO >
+  Stats()
+  < S_OD >
+}
+
+void Repeat():
+{
+}
+{
+  < S_REPEAT >
+  Stats()
+  < S_UNTIL >
+  Expr()
+}
+
+void Break():
+{
+}
+{
+  < S_BREAK >
+}
+
+void Continue():
+{
+}
+{
+  < S_CONTINUE >
+}
+
+void Return():
+{
+}
+{
+  < S_RETURN >
+  [
+    Expr()
+  ]
+}
+
+void TryNext():
+{
+}
+{
+  < S_TRYNEXT >
+  < S_LPAREN >
+  < S_RPAREN >
+}
+
+void Quit():
+{
+}
+{
+  < S_QUIT >
+}
+
+void Atomic():
+{
+}
+{
+  < S_ATOMIC >
+  // TODO: complete; but it looks nobody ever needed it
+}
